@@ -1,0 +1,844 @@
+---
+title: "Análisis Estadístico: Auto"
+lang: es
+format:
+  html:
+    toc: false
+    theme: cosmo
+    code-fold: true
+    fig-width: 8
+    fig-height: 6
+    fig-align: "center"
+    fontsize: 1.1rem
+---
+
+```{=html}
+<style>
+main.content {
+text-align: justify}
+</style>
+```
+
+```{r}
+#| code-fold: true
+#| message: false
+#| warning: false
+
+library(tidyverse)
+library(RColorBrewer)
+library(sf)          # Para datos espaciales
+library(viridis)     # Para paletas de colores
+library(DT)
+library(plotly)
+library(knitr)
+library(kableExtra)
+library(corrplot)
+library(broom)
+library(scales)
+library(multcomp)
+library(ISLR2)
+```
+
+En esta sección, realizaremos un análisis estadístico detallado de un conjunto de datos relacionado con automóviles. El objetivo es explorar las relaciones entre diferentes variables, identificar patrones y tendencias, y extraer conclusiones significativas. El conjunto de datos que utilizaremos es "Auto" del paquete ISLR2, que contiene información sobre diversas características de automóviles, como el rendimiento de combustible, el peso, la aceleración y el año de fabricación. Contiene las siguientes variables y se incluye también el tipo de cada una:
+
+-   `mpg`: Millas por galón (numérica)
+-   `cylinders`: Número de cilindros (categórica)
+-   `displacement`: Desplazamiento del motor en pulgadas cúbicas (numérica)
+-   `horsepower`: Potencia del motor en caballos de fuerza (numérica)
+-   `weight`: Peso del automóvil en libras (numérica)
+-   `acceleration`: Aceleración, tiempo para alcanzar 60 mph desde reposo, en segundos (numérica)
+-   `year`: Año de fabricación (categórica)
+-   `origin`: Origen del automóvil, 1: EE.UU., 2: Europa, 3: Japón (categórica)
+-   `name`: Nombre del automóvil (categórica)
+
+```{r}
+#| code-fold: true
+# Cargar el conjunto de datos Auto
+data("Auto", package = "ISLR2")
+
+glimpse(Auto)
+```
+
+Notemos que algunas variables no corresponden al tipo que se indicó previamente, hagamos los ajustes necesarios:
+
+```{r}
+#| code-fold: true
+
+# Convertir variables a los tipos adecuados
+Auto <- Auto |> 
+  mutate(
+    cylinders = as.factor(cylinders),
+    year = as.factor(year),
+    origin = as.factor(origin)
+  )
+
+glimpse(Auto)
+```
+
+Ahora que hemos preparado los datos, podemos comenzar nuestro análisis estadístico exploratorio.
+
+## Análisis Exploratorio de Datos (EDA)
+
+### Resumen Estadístico
+
+Comenzaremos examinando las estadísticas descriptivas básicas de nuestras variables numéricas:
+
+```{r}
+#| code-fold: true
+
+# Resumen estadístico de variables numéricas
+Auto |> 
+  dplyr::select(mpg, displacement, horsepower, weight, acceleration) |> 
+  summary() |> 
+  kable(
+    caption = "Estadísticas Descriptivas de Variables Numéricas",
+    digits = 2
+  ) |> 
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+```
+
+### Distribución de Variables Numéricas
+
+Visualizaremos la distribución de las principales variables numéricas mediante histogramas:
+
+```{r}
+#| code-fold: true
+#| fig-cap: "Distribución de Variables Numéricas"
+
+# Crear histogramas para variables numéricas
+Auto |> 
+  dplyr::select(mpg, displacement, horsepower, weight, acceleration) |> 
+  pivot_longer(cols = everything(), names_to = "variable", values_to = "valor") |> 
+  ggplot(aes(x = valor, fill = variable)) +
+  geom_histogram(bins = 30, color = "white", alpha = 0.8) +
+  facet_wrap(~variable, scales = "free", ncol = 2) +
+  scale_fill_brewer(palette = "Set2") +
+  theme_minimal() +
+  theme(
+    legend.position = "none",
+    strip.text = element_text(size = 12, face = "bold")
+  ) +
+  labs(
+    title = "Distribución de Variables Numéricas",
+    x = "Valor",
+    y = "Frecuencia"
+  )
+```
+
+**Observaciones:**
+
+-   `mpg`: Muestra una distribución ligeramente sesgada a la derecha, con la mayoría de vehículos teniendo entre 15 y 30 mpg.
+-   `displacement`: Presenta una distribución bimodal, sugiriendo dos grupos distintos de tamaños de motor.
+-   `horsepower`: Distribución sesgada a la derecha, con la mayoría de vehículos teniendo menos de 150 hp.
+-   `weight`: Similar a displacement, muestra dos grupos principales de peso.
+-   `acceleration`: Distribución aproximadamente normal, centrada alrededor de 15 segundos.
+
+### Distribución de Variables Categóricas
+
+Ahora examinaremos las variables categóricas:
+
+```{r}
+#| code-fold: true
+#| fig-cap: "Distribución de Variables Categóricas"
+
+# Gráficos de barras para variables categóricas
+p1 <- Auto |> 
+  count(cylinders) |> 
+  ggplot(aes(x = cylinders, y = n, fill = cylinders)) +
+  geom_col(alpha = 0.8) +
+  geom_text(aes(label = n), vjust = -0.5, size = 3.5) +
+  scale_fill_brewer(palette = "Set1") +
+  theme_minimal() +
+  theme(legend.position = "none") +
+  labs(title = "Distribución de Cilindros", x = "Cilindros", y = "Frecuencia")
+
+p2 <- Auto |> 
+  count(origin) |> 
+  mutate(origin = factor(origin, labels = c("EE.UU.", "Europa", "Japón"))) |> 
+  ggplot(aes(x = origin, y = n, fill = origin)) +
+  geom_col(alpha = 0.8) +
+  geom_text(aes(label = n), vjust = -0.5, size = 3.5) +
+  scale_fill_brewer(palette = "Set1") +
+  theme_minimal() +
+  theme(legend.position = "none") +
+  labs(title = "Distribución de Origen", x = "Origen", y = "Frecuencia")
+
+p3 <- Auto |> 
+  count(year) |> 
+  ggplot(aes(x = year, y = n)) +
+  geom_col(fill = "#4DAF4A", alpha = 0.8) +
+  geom_text(aes(label = n), vjust = -0.5, size = 2.5, angle = 45) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(title = "Distribución de Año", x = "Año", y = "Frecuencia")
+
+# Combinar gráficos usando gridExtra o patchwork
+gridExtra::grid.arrange(p1, p2, p3, ncol = 2, nrow = 2)
+```
+
+### Relación entre MPG y otras Variables
+
+El rendimiento de combustible (mpg) es una variable clave. Exploremos su relación con otras variables:
+
+```{r}
+#| code-fold: true
+#| fig-cap: "Relación entre MPG y Variables Numéricas"
+
+# Scatter plots de mpg vs otras variables
+Auto |> 
+  dplyr::select(mpg, displacement, horsepower, weight, acceleration) |> 
+  pivot_longer(cols = -mpg, names_to = "variable", values_to = "valor") |> 
+  ggplot(aes(x = valor, y = mpg)) +
+  geom_point(alpha = 0.6, color = "#377EB8", size = 2) +
+  geom_smooth(method = "lm", se = TRUE, color = "#E41A1C", linewidth = 1) +
+  facet_wrap(~variable, scales = "free_x", ncol = 2) +
+  theme_minimal() +
+  theme(strip.text = element_text(size = 12, face = "bold")) +
+  labs(
+    title = "Relación entre MPG y Variables Numéricas",
+    x = "Valor de la Variable",
+    y = "Millas por Galón (MPG)"
+  )
+```
+
+**Observaciones:**
+
+-   Existe una fuerte correlación negativa entre mpg y displacement, horsepower, y weight.
+-   La acceleration muestra una correlación positiva débil con mpg.
+-   Vehículos más pesados y con motores más grandes tienden a tener menor eficiencia de combustible.
+
+### Evolución Temporal del MPG
+
+```{r}
+#| code-fold: true
+#| fig-cap: "Evolución del MPG por Año"
+
+Auto |> 
+  ggplot(aes(x = year, y = mpg)) +
+  geom_boxplot(fill = "#A6CEE3", alpha = 0.7, outlier.color = "#E41A1C") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(
+    title = "Evolución del Rendimiento de Combustible por Año",
+    x = "Año de Fabricación",
+    y = "Millas por Galón (MPG)"
+  )
+```
+
+Se observa una clara tendencia al aumento de la eficiencia de combustible a lo largo de los años, probablemente debido a mejoras tecnológicas y regulaciones ambientales.
+
+### Comparación de MPG por Origen
+
+```{r}
+#| code-fold: true
+#| fig-cap: "Comparación de MPG por Origen del Automóvil"
+
+Auto |> 
+  mutate(origin = factor(origin, labels = c("EE.UU.", "Europa", "Japón"))) |> 
+  ggplot(aes(x = origin, y = mpg, fill = origin)) +
+  geom_violin(alpha = 0.7, trim = FALSE) +
+  geom_boxplot(width = 0.2, fill = "white", alpha = 0.8, outlier.shape = NA) +
+  scale_fill_brewer(palette = "Set2") +
+  theme_minimal() +
+  theme(legend.position = "none") +
+  labs(
+    title = "Distribución de MPG por Origen del Automóvil",
+    x = "Origen",
+    y = "Millas por Galón (MPG)"
+  )
+```
+
+Los automóviles japoneses muestran la mayor eficiencia promedio de combustible, seguidos por los europeos y finalmente los estadounidenses.
+
+### Tabla Resumen por Origen
+
+```{r}
+#| code-fold: true
+
+Auto |> 
+  mutate(origin = factor(origin, labels = c("EE.UU.", "Europa", "Japón"))) |> 
+  group_by(origin) |> 
+  summarise(
+    n = n(),
+    mpg_promedio = mean(mpg),
+    mpg_sd = sd(mpg),
+    peso_promedio = mean(weight),
+    hp_promedio = mean(horsepower)
+  ) |> 
+  kable(
+    caption = "Estadísticas por Origen del Automóvil",
+    digits = 2,
+    col.names = c("Origen", "N", "MPG Promedio", "MPG DE", "Peso Promedio (lbs)", "HP Promedio")
+  ) |> 
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = FALSE)
+```
+
+## Correlación entre Variables Numéricas
+
+### Matriz de Correlación
+
+Calcularemos la matriz de correlación de Pearson entre todas las variables numéricas del conjunto de datos:
+
+```{r}
+#| code-fold: true
+
+# Seleccionar variables numéricas y calcular correlaciones
+variables_numericas <- Auto |> 
+  dplyr::select(mpg, displacement, horsepower, weight, acceleration)
+
+# Calcular matriz de correlación
+matriz_cor <- cor(variables_numericas, use = "complete.obs")
+
+# Mostrar matriz de correlación como tabla
+matriz_cor |> 
+  kable(
+    caption = "Matriz de Correlación de Pearson entre Variables Numéricas",
+    digits = 3
+  ) |> 
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = FALSE)
+```
+
+### Visualización de la Matriz de Correlación
+
+Utilizaremos un correlograma para visualizar las correlaciones de manera más intuitiva:
+
+```{r}
+#| code-fold: true
+#| fig-cap: "Correlograma de Variables Numéricas"
+#| fig-width: 8
+#| fig-height: 8
+
+# Correlograma con corrplot
+corrplot(
+  matriz_cor,
+  method = "color",
+  type = "upper",
+  addCoef.col = "black",
+  tl.col = "black",
+  tl.srt = 45,
+  number.cex = 0.8,
+  col = colorRampPalette(c("#E41A1C", "white", "#377EB8"))(200),
+  title = "Matriz de Correlación entre Variables Numéricas",
+  mar = c(0, 0, 2, 0)
+)
+```
+
+**Interpretación de las correlaciones:**
+
+-   **MPG (Millas por Galón)**:
+    -   Correlación muy negativa con `displacement` (r = -0.805), `horsepower` (r = -0.778) y `weight` (r = -0.832)
+    -   Correlación positiva moderada con `acceleration` (r = 0.423)
+    -   Vehículos más pesados y con motores más grandes consumen más combustible
+-   **Displacement, Horsepower y Weight**:
+    -   Estas tres variables están altamente correlacionadas entre sí (r \> 0.89)
+    -   Esto sugiere multicolinealidad potencial en modelos predictivos
+-   **Acceleration**:
+    -   Correlación negativa moderada con `horsepower` (r = -0.689), `displacement` (r = -0.544) y `weight` (r = -0.417)
+    -   Vehículos más potentes aceleran más rápido (menor tiempo de aceleración)
+
+### Gráfico de Dispersión Múltiple (Pairs Plot)
+
+Para visualizar todas las relaciones bivariadas simultáneamente:
+
+```{r}
+#| code-fold: true
+#| fig-cap: "Matriz de Dispersión de Variables Numéricas"
+#| fig-width: 10
+#| fig-height: 10
+
+# Pairs plot personalizado
+pairs(
+  variables_numericas,
+  lower.panel = panel.smooth,
+  upper.panel = NULL,
+  main = "Matriz de Dispersión de Variables Numéricas",
+  col = alpha("#377EB8", 0.5),
+  pch = 19,
+  cex = 0.8
+)
+```
+
+### Análisis Detallado: MPG vs Variables Principales
+
+Examinaremos con más detalle las relaciones más fuertes con MPG:
+
+```{r}
+#| code-fold: true
+#| fig-cap: "Relación de MPG con las Tres Variables Principales"
+#| fig-width: 12
+#| fig-height: 4
+
+p1 <- Auto |> 
+  ggplot(aes(x = weight, y = mpg)) +
+  geom_point(alpha = 0.6, color = "#377EB8", size = 2.5) +
+  geom_smooth(method = "lm", se = TRUE, color = "#E41A1C", linewidth = 1.2) +
+  annotate("text", x = max(Auto$weight) * 0.8, y = max(Auto$mpg) * 0.9,
+           label = paste("r =", round(cor(Auto$weight, Auto$mpg), 3)),
+           size = 5, fontface = "bold") +
+  theme_minimal() +
+  labs(title = "MPG vs Peso", x = "Peso (lbs)", y = "MPG")
+
+p2 <- Auto |> 
+  ggplot(aes(x = displacement, y = mpg)) +
+  geom_point(alpha = 0.6, color = "#4DAF4A", size = 2.5) +
+  geom_smooth(method = "lm", se = TRUE, color = "#E41A1C", linewidth = 1.2) +
+  annotate("text", x = max(Auto$displacement) * 0.8, y = max(Auto$mpg) * 0.9,
+           label = paste("r =", round(cor(Auto$displacement, Auto$mpg), 3)),
+           size = 5, fontface = "bold") +
+  theme_minimal() +
+  labs(title = "MPG vs Desplazamiento", x = "Desplazamiento (in³)", y = "MPG")
+
+p3 <- Auto |> 
+  ggplot(aes(x = horsepower, y = mpg)) +
+  geom_point(alpha = 0.6, color = "#984EA3", size = 2.5) +
+  geom_smooth(method = "lm", se = TRUE, color = "#E41A1C", linewidth = 1.2) +
+  annotate("text", x = max(Auto$horsepower) * 0.8, y = max(Auto$mpg) * 0.9,
+           label = paste("r =", round(cor(Auto$horsepower, Auto$mpg), 3)),
+           size = 5, fontface = "bold") +
+  theme_minimal() +
+  labs(title = "MPG vs Potencia", x = "Potencia (HP)", y = "MPG")
+
+gridExtra::grid.arrange(p1, p2, p3, ncol = 3)
+```
+
+### Pruebas de Significancia de las Correlaciones
+
+Realizaremos pruebas de hipótesis para verificar si las correlaciones son estadísticamente significativas:
+
+```{r}
+#| code-fold: true
+
+# Función para calcular correlaciones y p-valores
+calcular_cor_test <- function(var1, var2, nombre1, nombre2) {
+  test <- cor.test(var1, var2, method = "pearson")
+  data.frame(
+    Variable_1 = nombre1,
+    Variable_2 = nombre2,
+    Correlacion = round(test$estimate, 4),
+    p_valor = format.pval(test$p.value, digits = 4),
+    IC_inferior = round(test$conf.int[1], 4),
+    IC_superior = round(test$conf.int[2], 4)
+  )
+}
+
+# Realizar pruebas para las correlaciones principales con MPG
+resultados_cor <- bind_rows(
+  calcular_cor_test(Auto$mpg, Auto$weight, "mpg", "weight"),
+  calcular_cor_test(Auto$mpg, Auto$displacement, "mpg", "displacement"),
+  calcular_cor_test(Auto$mpg, Auto$horsepower, "mpg", "horsepower"),
+  calcular_cor_test(Auto$mpg, Auto$acceleration, "mpg", "acceleration")
+)
+
+resultados_cor |> 
+  kable(
+    caption = "Pruebas de Significancia de Correlaciones con MPG",
+    col.names = c("Variable 1", "Variable 2", "Correlación", "p-valor", "IC 95% Inferior", "IC 95% Superior")
+  ) |> 
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = FALSE)
+```
+
+**Conclusiones:**
+
+Todas las correlaciones evaluadas son estadísticamente significativas (p \< 0.001), lo que confirma que:
+
+1.  El peso, desplazamiento y potencia son predictores negativos fuertes de la eficiencia de combustible
+2.  La aceleración es un predictor positivo moderado del rendimiento
+3.  Los intervalos de confianza al 95% no incluyen el cero, reforzando la significancia estadística
+
+### Mapa de Calor Interactivo
+
+```{r}
+#| code-fold: true
+#| fig-cap: "Mapa de Calor Interactivo de Correlaciones"
+
+# Preparar datos para plotly
+matriz_cor_long <- matriz_cor |> 
+  as.data.frame() |> 
+  rownames_to_column("Variable_1") |> 
+  pivot_longer(-Variable_1, names_to = "Variable_2", values_to = "Correlacion")
+
+# Crear heatmap interactivo
+plot_ly(
+  data = matriz_cor_long,
+  x = ~Variable_2,
+  y = ~Variable_1,
+  z = ~Correlacion,
+  type = "heatmap",
+  colors = colorRamp(c("#E41A1C", "white", "#377EB8")),
+  text = ~round(Correlacion, 3),
+  hovertemplate = paste(
+    "<b>%{y} vs %{x}</b><br>",
+    "Correlación: %{z:.3f}<br>",
+    "<extra></extra>"
+  )
+) |> 
+  layout(
+    title = "Mapa de Calor Interactivo de Correlaciones",
+    xaxis = list(title = ""),
+    yaxis = list(title = "")
+  )
+```
+
+### Análisis de Multicolinealidad
+
+Dado que varias variables están altamente correlacionadas, calculamos el Factor de Inflación de la Varianza (VIF):
+
+```{r}
+#| code-fold: true
+
+# Ajustar modelo lineal con todas las variables
+modelo_completo <- lm(mpg ~ displacement + horsepower + weight + acceleration, 
+                      data = Auto)
+
+# Calcular VIF
+vif_valores <- car::vif(modelo_completo)
+
+# Mostrar resultados
+data.frame(
+  Variable = names(vif_valores),
+  VIF = round(vif_valores, 3)
+) |> 
+  arrange(desc(VIF)) |> 
+  kable(
+    caption = "Factor de Inflación de la Varianza (VIF)",
+    col.names = c("Variable", "VIF")
+  ) |> 
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = FALSE)
+```
+
+**Interpretación del VIF:**
+
+-   VIF \> 10 indica multicolinealidad severa
+-   VIF entre 5-10 indica multicolinealidad moderada
+-   `displacement`, `horsepower` y `weight` muestran alta multicolinealidad, lo cual es esperado dada su fuerte correlación
+-   En modelos predictivos, podría ser necesario considerar solo una de estas variables o usar técnicas de regularización
+
+## ANOVA's
+
+### ANOVA de una vía: MPG por Origen
+
+Evaluaremos si existen diferencias significativas en el rendimiento de combustible (MPG) entre automóviles de diferentes orígenes.
+
+```{r}
+#| code-fold: true
+
+# Preparar datos con etiquetas de origen
+Auto_origen <- Auto |> 
+  mutate(origin = factor(origin, labels = c("EE.UU.", "Europa", "Japón")))
+
+# ANOVA de una vía
+anova_origen <- aov(mpg ~ origin, data = Auto_origen)
+
+# Resumen del ANOVA
+anova_origen |> 
+  broom::tidy() |> 
+  kable(
+    caption = "ANOVA de una vía: MPG por Origen",
+    digits = 4,
+    col.names = c("Término", "gl", "Suma de Cuadrados", "Cuadrado Medio", "Estadístico F", "p-valor")
+  ) |> 
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = FALSE)
+```
+
+**Interpretación:**
+
+-   **H₀**: Las medias de MPG son iguales para todos los orígenes (μ₁ = μ₂ = μ₃)
+-   **H₁**: Al menos una media de MPG difiere entre orígenes
+-   Con p-valor \< 0.05, rechazamos H₀ y concluimos que existen diferencias significativas en MPG entre los diferentes orígenes
+
+#### Estadísticas Descriptivas por Grupo
+
+```{r}
+#| code-fold: true
+
+Auto_origen |> 
+  group_by(origin) |> 
+  summarise(
+    n = n(),
+    Media = mean(mpg),
+    Mediana = median(mpg),
+    DE = sd(mpg),
+    Mínimo = min(mpg),
+    Máximo = max(mpg)
+  ) |> 
+  kable(
+    caption = "Estadísticas Descriptivas de MPG por Origen",
+    digits = 2
+  ) |> 
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = FALSE)
+```
+
+#### Supuestos del ANOVA
+
+**1. Normalidad de Residuos**
+
+```{r}
+#| code-fold: true
+#| fig-cap: "Evaluación de Supuestos del ANOVA"
+#| fig-width: 12
+#| fig-height: 8
+
+# Gráficos de diagnóstico
+par(mfrow = c(2, 2))
+plot(anova_origen)
+par(mfrow = c(1, 1))
+```
+
+```{r}
+#| code-fold: true
+
+# Test de Shapiro-Wilk para residuos
+shapiro_residuos <- shapiro.test(residuals(anova_origen))
+
+data.frame(
+  Test = "Shapiro-Wilk (Residuos)",
+  Estadistico = round(shapiro_residuos$statistic, 4),
+  p_valor = format.pval(shapiro_residuos$p.value, digits = 4),
+  Conclusion = ifelse(shapiro_residuos$p.value > 0.05, 
+                      "Los residuos siguen distribución normal", 
+                      "Los residuos no siguen distribución normal")
+) |> 
+  kable(caption = "Test de Normalidad de Residuos") |> 
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = FALSE)
+```
+
+### Comparaciones Post-hoc: Test de Tukey HSD
+
+Dado que el ANOVA mostró diferencias significativas, realizamos comparaciones múltiples para identificar qué grupos difieren entre sí:
+
+```{r}
+#| code-fold: true
+
+# Test de Tukey HSD
+tukey_result <- TukeyHSD(anova_origen, conf.level = 0.95)
+
+# Mostrar resultados
+tukey_result$origin |> 
+  as.data.frame() |> 
+  rownames_to_column("Comparación") |> 
+  kable(
+    caption = "Comparaciones Múltiples de Tukey HSD",
+    digits = 4,
+    col.names = c("Comparación", "Diferencia", "IC 95% Inferior", "IC 95% Superior", "p-valor ajustado")
+  ) |> 
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = FALSE)
+```
+
+**Interpretación:**
+
+-   **Europa - EE.UU.**: Diferencia significativa (p \< 0.05), Europa tiene mayor MPG
+-   **Japón - EE.UU.**: Diferencia significativa (p \< 0.05), Japón tiene mayor MPG
+-   **Japón - Europa**: La comparación indica si hay diferencia entre estos dos grupos
+
+#### Visualización de Comparaciones Post-hoc
+
+```{r}
+#| code-fold: true
+#| fig-cap: "Intervalos de Confianza de Tukey HSD"
+#| fig-width: 8
+#| fig-height: 6
+
+# Gráfico de intervalos de confianza
+par(mar = c(5, 8, 4, 2))
+plot(tukey_result, las = 1, col = "#377EB8")
+abline(v = 0, lty = 2, col = "#E41A1C", lwd = 2)
+```
+
+Los intervalos que no cruzan la línea vertical en cero indican diferencias significativas.
+
+### ANOVA de una vía: MPG por Número de Cilindros
+
+```{r}
+#| code-fold: true
+
+# ANOVA para cilindros
+anova_cilindros <- aov(mpg ~ cylinders, data = Auto)
+
+anova_cilindros |> 
+  broom::tidy() |> 
+  kable(
+    caption = "ANOVA de una vía: MPG por Número de Cilindros",
+    digits = 4,
+    col.names = c("Término", "gl", "Suma de Cuadrados", "Cuadrado Medio", "Estadístico F", "p-valor")
+  ) |> 
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = FALSE)
+```
+
+#### Estadísticas por Número de Cilindros
+
+```{r}
+#| code-fold: true
+
+Auto |> 
+  group_by(cylinders) |> 
+  summarise(
+    n = n(),
+    Media_MPG = mean(mpg),
+    DE_MPG = sd(mpg)
+  ) |> 
+  kable(
+    caption = "Estadísticas de MPG por Número de Cilindros",
+    digits = 2,
+    col.names = c("Cilindros", "N", "Media MPG", "DE MPG")
+  ) |> 
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = FALSE)
+```
+
+#### Comparaciones Post-hoc para Cilindros
+
+```{r}
+#| code-fold: true
+
+# Test de Tukey para cilindros
+tukey_cilindros <- TukeyHSD(anova_cilindros, conf.level = 0.95)
+
+tukey_cilindros$cylinders |> 
+  as.data.frame() |> 
+  rownames_to_column("Comparación") |> 
+  filter(`p adj` < 0.05) |>  # Mostrar solo comparaciones significativas
+  kable(
+    caption = "Comparaciones Significativas de Tukey HSD (Cilindros)",
+    digits = 4,
+    col.names = c("Comparación", "Diferencia", "IC 95% Inferior", "IC 95% Superior", "p-valor ajustado")
+  ) |> 
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = FALSE)
+```
+
+### ANOVA de dos vías: MPG por Origen y Cilindros
+
+Evaluaremos si hay efectos de interacción entre el origen y el número de cilindros:
+
+```{r}
+#| code-fold: true
+
+# Filtrar solo cilindros con suficientes observaciones por grupo
+Auto_filtrado <- Auto_origen |> 
+  filter(cylinders %in% c("4", "6", "8"))
+
+# ANOVA de dos vías
+anova_dos_vias <- aov(mpg ~ origin * cylinders, data = Auto_filtrado)
+
+anova_dos_vias |> 
+  broom::tidy() |> 
+  kable(
+    caption = "ANOVA de dos vías: MPG por Origen y Cilindros",
+    digits = 4,
+    col.names = c("Término", "gl", "Suma de Cuadrados", "Cuadrado Medio", "Estadístico F", "p-valor")
+  ) |> 
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = FALSE)
+```
+
+**Interpretación:**
+
+-   **Efecto principal de Origen**: Significativo si p-valor \< 0.05
+-   **Efecto principal de Cilindros**: Significativo si p-valor \< 0.05
+-   **Efecto de Interacción**: Si es significativo, indica que el efecto de un factor depende del nivel del otro factor
+
+#### Gráfico de Interacción
+
+```{r}
+#| code-fold: true
+#| fig-cap: "Gráfico de Interacción: Origen × Cilindros"
+#| fig-width: 10
+#| fig-height: 6
+
+# Calcular medias por grupo
+medias_interaccion <- Auto_filtrado |> 
+  group_by(origin, cylinders) |> 
+  summarise(
+    Media_MPG = mean(mpg),
+    n = n(),
+    .groups = "drop"
+  )
+
+# Gráfico de interacción
+ggplot(medias_interaccion, aes(x = cylinders, y = Media_MPG, color = origin, group = origin)) +
+  geom_line(linewidth = 1.2) +
+  geom_point(size = 4) +
+  scale_color_brewer(palette = "Set1") +
+  theme_minimal() +
+  theme(
+    legend.position = "top",
+    legend.title = element_text(face = "bold"),
+    plot.title = element_text(face = "bold", size = 14)
+  ) +
+  labs(
+    title = "Gráfico de Interacción: MPG por Origen y Número de Cilindros",
+    x = "Número de Cilindros",
+    y = "MPG Promedio",
+    color = "Origen"
+  )
+```
+
+Si las líneas son paralelas, no hay interacción. Si las líneas se cruzan o tienen pendientes muy diferentes, hay evidencia de interacción.
+
+### Test de Kruskal-Wallis (Alternativa no paramétrica)
+
+Como algunas variables no siguen distribución normal, también realizamos el test no paramétrico de Kruskal-Wallis:
+
+```{r}
+#| code-fold: true
+
+# Test de Kruskal-Wallis para MPG por origen
+kruskal_origen <- kruskal.test(mpg ~ origin, data = Auto_origen)
+
+data.frame(
+  Test = "Kruskal-Wallis",
+  Variable = "MPG por Origen",
+  Estadistico_H = round(kruskal_origen$statistic, 4),
+  gl = kruskal_origen$parameter,
+  p_valor = format.pval(kruskal_origen$p.value, digits = 4)
+) |> 
+  kable(caption = "Test de Kruskal-Wallis (Alternativa no paramétrica)") |> 
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = FALSE)
+```
+
+#### Comparaciones Post-hoc: Test de Dunn
+
+```{r}
+#| code-fold: true
+
+# Test de Dunn para comparaciones múltiples
+dunn_result <- FSA::dunnTest(mpg ~ origin, data = Auto_origen, method = "bonferroni")
+
+dunn_result$res |> 
+  kable(
+    caption = "Comparaciones Múltiples de Dunn (ajuste Bonferroni)",
+    digits = 4
+  ) |> 
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = FALSE)
+```
+
+### Resumen de Hallazgos
+
+```{r}
+#| code-fold: true
+
+# Crear tabla resumen de todos los ANOVAs
+resumen_anovas <- data.frame(
+  Análisis = c(
+    "ANOVA: MPG ~ Origen",
+    "ANOVA: MPG ~ Cilindros",
+    "ANOVA 2 vías: MPG ~ Origen × Cilindros",
+    "Kruskal-Wallis: MPG ~ Origen"
+  ),
+  Significativo = c("Sí", "Sí", "Verificar tabla anterior", "Sí"),
+  Conclusión = c(
+    "Existen diferencias significativas de MPG entre orígenes",
+    "El número de cilindros afecta significativamente el MPG",
+    "Evaluar efectos principales e interacción",
+    "Confirma diferencias entre orígenes (método no paramétrico)"
+  )
+)
+
+resumen_anovas |> 
+  kable(caption = "Resumen de Análisis ANOVA") |> 
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = FALSE)
+```
+
+**Conclusiones principales:**
+
+1.  El origen del automóvil tiene un efecto significativo en el rendimiento de combustible
+2.  Los vehículos japoneses y europeos tienen mejor MPG que los estadounidenses
+3.  El número de cilindros está inversamente relacionado con la eficiencia de combustible
+4.  Los resultados son robustos tanto en pruebas paramétricas como no paramétricas

@@ -1,0 +1,427 @@
+---
+title: "Distribución Weibull"
+lang: es
+---
+
+```{=html}
+<style>
+main.content {
+text-align: justify}
+</style>
+```
+
+```{r}
+#| label: setup
+#| include: false
+
+library(ggplot2)
+library(dplyr)
+library(gridExtra)
+library(knitr)
+library(kableExtra)
+library(RColorBrewer)
+library(plotly)
+```
+
+
+## Definición
+
+La distribución Weibull se ha utilizado en estudios de confiabilidad y durabilidad de componentes electrónicos y mecánicos. El valor de una variable aleatoria con esta distribución puede interpretarse como el tiempo de vida útil que tiene uno de estos componentes.
+
+::: {#def-dist_weibull}
+Una variable aleatoria continua $X$ sigue una **distribución Weibull** si tiene función de densidad de probabilidad:
+
+$$f(x) = \frac{\alpha}{\lambda} \left(\frac{x}{\lambda}\right)^{\alpha-1} e^{-(x/\lambda)^{\alpha}}, \quad x > 0$$
+
+donde:
+
+- $\alpha > 0$ es el **parámetro de forma** (shape parameter)
+- $\lambda > 0$ es el **parámetro de escala** (scale parameter)
+
+A una variable aleatoria con distribución Weibull la denotamos como $X \sim \text{Weibull}(\alpha, \lambda)$
+:::
+
+## Propiedades de la Función de Densidad
+
+La función de densidad de probabilidad de la distribución Weibull puede escribirse como:
+
+$$f(x) = \frac{\alpha}{\lambda} \left(\frac{x}{\lambda}\right)^{\alpha-1} e^{-(x/\lambda)^{\alpha}}, \quad x > 0$$
+
+La cual puede descomponerse en tres componentes principales:
+
+1. **Factor de normalización**: $\frac{\alpha}{\lambda}$
+2. **Componente de potencia**: $\left(\frac{x}{\lambda}\right)^{\alpha-1}$
+3. **Componente exponencial**: $e^{-(x/\lambda)^{\alpha}}$
+
+**Análisis del Comportamiento en x = 0**
+
+El comportamiento de $f(x)$ cuando $x \to 0^+$ depende crucialmente del parámetro de forma $\alpha$:
+
+$$\lim_{x \to 0^+} f(x) = \lim_{x \to 0^+} \frac{\alpha}{\lambda} \left(\frac{x}{\lambda}\right)^{\alpha-1} e^{-(x/\lambda)^{\alpha}}$$
+
+- **Si α > 1**: $\lim_{x \to 0^+} f(x) = 0$
+- **Si α = 1**: $\lim_{x \to 0^+} f(x) = \frac{1}{\lambda}$
+- **Si 0 < α < 1**: $\lim_{x \to 0^+} f(x) = +\infty$
+
+**Moda de la Distribución**
+
+Para encontrar la moda, calculamos $f'(x) = 0$:
+
+$$f'(x) = \frac{\alpha}{\lambda^2} \left(\frac{x}{\lambda}\right)^{\alpha-2} e^{-(x/\lambda)^{\alpha}} \left[(\alpha-1) - \alpha\left(\frac{x}{\lambda}\right)^{\alpha}\right]$$
+
+Igualando a cero y resolviendo:
+
+- **Si α > 1**: Moda = $\lambda \left(\frac{\alpha-1}{\alpha}\right)^{1/\alpha}$
+- **Si α = 1**: No hay moda (distribución exponencial, monótona decreciente)
+- **Si α < 1**: Moda = 0
+
+**Visualización Detallada del Comportamiento**
+
+```{r}
+#| label: visualizacion-comportamiento
+#| warning: false
+#| code-fold: true
+
+lambda_fijo <- 1
+
+# Crear gráfico mostrando diferentes comportamientos
+x_detalle <- seq(0.01, 3, length.out = 1000)
+alpha_casos <- c(0.5, 1, 2, 3)
+
+df_casos <- data.frame()
+for (i in seq_along(alpha_casos)) {
+  alpha_i <- alpha_casos[i]
+  temp <- data.frame(
+    x = x_detalle,
+    y = dweibull(x_detalle, shape = alpha_i, scale = lambda_fijo),
+    caso = paste("α =", alpha_i)
+  )
+  df_casos <- rbind(df_casos, temp)
+}
+
+# Calcular modas para α > 1
+calcular_moda_weibull <- function(alpha, lambda) {
+  if (alpha > 1) {
+    return(lambda * ((alpha - 1) / alpha)^(1/alpha))
+  } else {
+    return(NA)
+  }
+}
+
+df_modas <- data.frame(
+  x = sapply(alpha_casos, calcular_moda_weibull, lambda = lambda_fijo),
+  caso = paste("α =", alpha_casos)
+) %>% 
+  filter(!is.na(x)) %>%
+  mutate(y = dweibull(x, shape = as.numeric(gsub("α = ", "", caso)), scale = lambda_fijo))
+
+p1 <- ggplot(df_casos, aes(x = x, y = y, color = caso)) +
+  geom_line(linewidth = 1.2) +
+  geom_point(data = df_modas, aes(x = x, y = y), size = 3, color = "black") +
+  geom_point(data = df_modas, aes(x = x, y = y, color = caso), size = 2) +
+  labs(title = "Comportamiento de la PDF Weibull según α",
+       subtitle = paste("λ =", lambda_fijo),
+       x = "x", y = "f(x)",
+       color = "Parámetro α") +
+  scale_color_brewer(palette="Dark2")+
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5),
+        plot.subtitle = element_text(hjust = 0.5)) +
+  xlim(0, 3) +
+  ylim(0, 2)
+
+# Gráfico de zoom cerca del origen para α < 1
+x_zoom <- seq(0.001, 0.5, length.out = 1000)
+df_zoom <- data.frame(
+  x = x_zoom,
+  y = dweibull(x_zoom, shape = 0.5, scale = lambda_fijo),
+  caso = "α = 0.5"
+)
+
+p2 <- ggplot(df_zoom, aes(x = x, y = y)) +
+  geom_line(linewidth = 1.2, color = "red") +
+  labs(title = "Comportamiento cerca del origen (α = 0.5)",
+       x = "x", y = "f(x)") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  xlim(0, 0.5) +
+  ylim(0, 4)
+
+grid.arrange(p1, p2, ncol = 2)
+```
+
+<br>
+
+**Derivada de la PDF**
+
+$$f'(x) = \frac{\alpha}{\lambda^2} \left(\frac{x}{\lambda}\right)^{\alpha-2} e^{-(x/\lambda)^{\alpha}} \left[(\alpha-1) - \alpha\left(\frac{x}{\lambda}\right)^{\alpha}\right]$$
+
+Análisis del signo:
+
+- Para $x < \lambda \left(\frac{\alpha-1}{\alpha}\right)^{1/\alpha}$: $f'(x) > 0$ (función creciente, si $\alpha > 1$)
+- Para $x > \lambda \left(\frac{\alpha-1}{\alpha}\right)^{1/\alpha}$: $f'(x) < 0$ (función decreciente, si $\alpha > 1$)
+
+**Comportamiento Asintótico**
+
+Cuando $x \to \infty$:
+$$f(x) \sim \frac{\alpha}{\lambda} \left(\frac{x}{\lambda}\right)^{\alpha-1} e^{-(x/\lambda)^{\alpha}} \to 0$$
+
+El decaimiento es **exponencial**, más rápido que cualquier función polinomial.
+
+## Función de Densidad de Probabilidad (PDF)
+
+```{r}
+#| label: interpretacion-parametros
+#| code-fold: true
+
+# Visualización del efecto de los parámetros
+x_seq <- seq(0, 4, length.out = 500)
+
+# Efecto del parámetro α (forma)
+alpha_vals <- c(0.5, 1, 1.5, 2, 3)
+lambda_fijo <- 1
+
+df_alpha <- data.frame()
+for (a in alpha_vals) {
+  temp <- data.frame(
+    x = x_seq,
+    y = dweibull(x_seq, shape = a, scale = lambda_fijo),
+    parametro = paste("α =", a)
+  )
+  df_alpha <- rbind(df_alpha, temp)
+}
+
+# Crear gráfico
+alpha_effect <- ggplot(df_alpha, aes(x = x, y = y, color = parametro)) +
+  geom_line(linewidth = 1.2) +
+  labs(title = "Efecto del Parámetro α en la Distribución Weibull",
+       subtitle = paste("λ =", lambda_fijo),
+       x = "x", y = "f(x)",
+       color = "Parámetro") +
+  scale_color_brewer(palette="Dark2")+
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5),
+        plot.subtitle = element_text(hjust = 0.5)) +
+  xlim(0, 4)
+
+ggplotly(alpha_effect)
+```
+
+```{r}
+#| label: interpretacion-parametro-lambda
+#| code-fold: true
+# Efecto del parámetro λ (escala)
+alpha_fijo <- 2
+lambda_vals <- c(0.5, 1, 1.5, 2, 2.5)
+
+df_lambda <- data.frame()
+for (b in lambda_vals) {
+  temp <- data.frame(
+    x = x_seq,
+    y = dweibull(x_seq, shape = alpha_fijo, scale = b),
+    parametro = paste("λ =", b)
+  )
+  df_lambda <- rbind(df_lambda, temp)
+}
+
+# Crear gráfico
+lambda_effect <- ggplot(df_lambda, aes(x = x, y = y, color = parametro)) +
+  geom_line(linewidth = 1.2) +
+  labs(title = "Efecto del Parámetro λ en la Distribución Weibull",
+       subtitle = paste("α =", alpha_fijo),
+       x = "x", y = "f(x)",
+       color = "Parámetro") +
+  scale_color_brewer(palette="Dark2")+
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5),
+        plot.subtitle = element_text(hjust = 0.5)) +
+  xlim(0, 4)
+
+ggplotly(lambda_effect)
+```
+
+## Medidas Descriptivas
+
+**Media (Esperanza)**
+
+La media de una distribución Weibull $X \sim \text{Weibull}(\alpha, \lambda)$ se calcula como:
+
+$$E(X) = \int_{0}^{\infty} x \cdot f(x) dx$$
+
+Después de realizar los cálculos con la función gamma:
+
+$$E(X) = \mu = \lambda \Gamma\left(1 + \frac{1}{\alpha}\right)$$
+
+donde $\Gamma$ es la función gamma.
+
+**Interpretación:**
+
+- La media depende de ambos parámetros: forma ($\alpha$) y escala ($\lambda$)
+- Mayor $\lambda$ implica mayor tiempo promedio de vida
+- El efecto de $\alpha$ en la media depende de la función gamma
+
+**Varianza**
+
+La varianza de la distribución Weibull se calcula usando la fórmula:
+
+$$\text{Var}(X) = E[X^2] - (E[X])^2$$
+
+Después de los cálculos:
+
+$$\text{Var}(X) = \sigma^2 = \lambda^2 \left[\Gamma\left(1 + \frac{2}{\alpha}\right) - \left(\Gamma\left(1 + \frac{1}{\alpha}\right)\right)^2\right]$$
+
+**Interpretación:**
+
+- La varianza es proporcional a $\lambda^2$
+- La dispersión relativa depende de $\alpha$
+- Mayor $\alpha$ generalmente implica menor variabilidad relativa
+
+**Desviación Estándar**
+
+La desviación estándar es la raíz cuadrada positiva de la varianza:
+
+$$\sigma = \sqrt{\text{Var}(X)} = \lambda \sqrt{\Gamma\left(1 + \frac{2}{\alpha}\right) - \left(\Gamma\left(1 + \frac{1}{\alpha}\right)\right)^2}$$
+
+**Mediana**
+
+La mediana de la distribución Weibull tiene una forma cerrada:
+
+$$\text{Mediana} = \lambda (\ln 2)^{1/\alpha}$$
+
+**Coeficiente de Variación**
+
+El coeficiente de variación (CV) es una medida de dispersión relativa:
+
+$$CV = \frac{\sigma}{\mu} = \frac{\sqrt{\Gamma(1 + 2/\alpha) - [\Gamma(1 + 1/\alpha)]^2}}{\Gamma(1 + 1/\alpha)}$$
+
+**Interpretación del CV:**
+
+- El CV **solo depende del parámetro de forma** $\alpha$
+- Es **independiente del parámetro de escala** $\lambda$
+- Para $\alpha = 1$ (exponencial): $CV = 1$
+- A mayor $\alpha$, menor variabilidad relativa
+
+```{r}
+#| label: visualizacion-media
+#| code-fold: true
+# Visualizar el efecto de los parámetros en la media
+x_vals <- seq(0, 4, length.out = 1000)
+
+# Efecto de α en la media (λ fijo)
+lambda_fijo <- 1
+alphas <- c(0.8, 1.5, 2, 3)
+
+df_alpha_media <- data.frame()
+for (a in alphas) {
+  media_a <- lambda_fijo * gamma(1 + 1/a)
+  temp <- data.frame(
+    x = x_vals,
+    y = dweibull(x_vals, shape = a, scale = lambda_fijo),
+    parametro = paste("α =", a),
+    media = media_a,
+    tipo = "Efecto de α (λ = 1)"
+  )
+  df_alpha_media <- rbind(df_alpha_media, temp)
+}
+
+# Efecto de λ en la media (α fijo)
+alpha_fijo <- 2
+lambdas <- c(0.6, 1, 1.4, 1.8)
+
+df_lambda_media <- data.frame()
+for (b in lambdas) {
+  media_b <- b * gamma(1 + 1/alpha_fijo)
+  temp <- data.frame(
+    x = x_vals,
+    y = dweibull(x_vals, shape = alpha_fijo, scale = b),
+    parametro = paste("λ =", b),
+    media = media_b,
+    tipo = "Efecto de λ (α = 2)"
+  )
+  df_lambda_media <- rbind(df_lambda_media, temp)
+}
+
+# Combinar datos
+df_medias <- rbind(df_alpha_media, df_lambda_media)
+
+# Crear gráfico
+ggplot(df_medias, aes(x = x, y = y, color = parametro)) +
+  geom_line(linewidth = 1.2) +
+  geom_vline(aes(xintercept = media, color = parametro), 
+             linetype = "dashed", alpha = 0.7) +
+  facet_wrap(~tipo, scales = "free", ncol = 2) +
+  labs(title = "Efecto de los Parámetros en la Media de la Distribución Weibull",
+       subtitle = "Las líneas verticales indican las medias teóricas",
+       x = "x", y = "f(x)",
+       color = "Parámetro") +
+  scale_color_brewer(palette="Dark2")+
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5),
+        plot.subtitle = element_text(hjust = 0.5))
+```
+
+### Ejemplo Numérico Completo
+
+```{r}
+#| label: ejemplo-completo
+#| code-fold: true
+# Ejemplo con Weibull(2.5, 1.2)
+alpha_ej <- 2.5
+lambda_ej <- 1.2
+
+# Calcular todas las medidas
+media_ej <- lambda_ej * gamma(1 + 1/alpha_ej)
+mediana_ej <- lambda_ej * (log(2))^(1/alpha_ej)
+varianza_ej <- lambda_ej^2 * (gamma(1 + 2/alpha_ej) - (gamma(1 + 1/alpha_ej))^2)
+desv_std_ej <- sqrt(varianza_ej)
+cv_ej <- sqrt(gamma(1 + 2/alpha_ej) - (gamma(1 + 1/alpha_ej))^2) / gamma(1 + 1/alpha_ej)
+
+# Calcular moda
+if (alpha_ej > 1) {
+  moda_ej <- lambda_ej * ((alpha_ej - 1) / alpha_ej)^(1/alpha_ej)
+} else {
+  moda_ej <- 0
+}
+
+# Crear resumen numérico
+resumen_numerico <- data.frame(
+  Medida = c("Media", "Mediana", "Moda", "Varianza", "Desviación Estándar", "Coeficiente de Variación"),
+  `Valor` = round(c(media_ej, mediana_ej, moda_ej, varianza_ej, desv_std_ej, cv_ej), 4),
+  `Interpretación` = c(
+    paste("Tiempo promedio =", round(media_ej, 2)),
+    paste("50% de valores ≤", round(mediana_ej, 2)),
+    paste("Valor más probable =", round(moda_ej, 2)),
+    paste("Variabilidad =", round(desv_std_ej, 2), "²"),
+    paste("Dispersión típica =", round(desv_std_ej, 2)),
+    paste("Variabilidad relativa =", round(cv_ej*100, 1), "%")
+  ),
+  check.names = FALSE
+)
+
+kable(resumen_numerico,
+      caption = paste("Ejemplo numérico: Weibull(", alpha_ej, ",", lambda_ej, ")")) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+
+# Visualización del ejemplo
+x_ejemplo <- seq(0, 4, length.out = 1000)
+pdf_ejemplo <- dweibull(x_ejemplo, alpha_ej, lambda_ej)
+
+ggplot(data.frame(x = x_ejemplo, y = pdf_ejemplo), aes(x = x, y = y)) +
+  geom_line(linewidth = 1.5, color = "blue") +
+  geom_vline(xintercept = media_ej, color = "red", linewidth = 1.2, linetype = "solid") +
+  geom_vline(xintercept = mediana_ej, color = "green", linewidth = 1.2, linetype = "dashed") +
+  geom_vline(xintercept = moda_ej, color = "purple", linewidth = 1.2, linetype = "dotdash") +
+  geom_vline(xintercept = c(media_ej - desv_std_ej, media_ej + desv_std_ej), 
+             color = "orange", linewidth = 1, linetype = "dotted") +
+  annotate("text", x = media_ej + 0.15, y = max(pdf_ejemplo) * 0.9,
+           label = paste("Media =", round(media_ej, 2)), color = "red", size = 4) +
+  annotate("text", x = mediana_ej + 0.15, y = max(pdf_ejemplo) * 0.7,
+           label = paste("Mediana =", round(mediana_ej, 2)), color = "green", size = 4) +
+  annotate("text", x = moda_ej + 0.15, y = max(pdf_ejemplo) * 0.5,
+           label = paste("Moda =", round(moda_ej, 2)), color = "purple", size = 4) +
+  labs(title = paste("Medidas Descriptivas: Weibull(", alpha_ej, ",", lambda_ej, ")"),
+       x = "x", y = "f(x)",
+       caption = "Roja: Media | Verde: Mediana | Púrpura: Moda | Naranja: μ ± σ") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5))
+```

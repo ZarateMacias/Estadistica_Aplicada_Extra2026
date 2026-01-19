@@ -1,0 +1,634 @@
+---
+title: "Estimación por el Método de Máxima Verosimilitud"
+lang: es
+format:
+  html:
+    toc: false
+    theme: cosmo
+    code-fold: true
+    fig-width: 6
+    fig-height: 4
+    fontsize: 1.1rem
+---
+
+```{=html}
+<style>
+main.content {
+text-align: justify}
+</style>
+```
+
+```{r}
+#| include: false
+
+library(tidyverse)
+library(knitr)
+library(kableExtra)
+library(readxl)
+library(RColorBrewer)
+```
+
+Las siguientes distribuciones dependen de dos parámetros: uno desconocido denotado por la letra $\theta$ y otro que supondremos conocido y que se denota por una letra distinta. Encuentra el estimador por el método de máxima verosimilitud para el parámetro desconocido $\theta$, suponiendo un tamaño de muestra $n$. En cada caso genera una muestra de tamaño $1000$ con parámetros conocidos y compara con el valor estimado.
+
+# a) $bin(k, \theta)$
+
+Consideramos la distribución binomial con parámetros $k$ conocido (número de ensayos) y $\theta$ desconocido (probabilidad de éxito), donde $0 < \theta < 1$.
+
+## Función de probabilidad
+
+La función de probabilidad de una variable aleatoria $X \sim bin(k, \theta)$ es:
+
+$$f(x; k, \theta) = \binom{k}{x} \theta^x (1-\theta)^{k-x}, \quad x = 0, 1, 2, \ldots, k$$
+
+## Función de verosimilitud
+
+Dada una muestra aleatoria $X_1, X_2, \ldots, X_n$, la función de verosimilitud es:
+
+$$L(\theta) = \prod_{i=1}^{n} f(x_i; k, \theta) = \prod_{i=1}^{n} \binom{k}{x_i} \theta^{x_i} (1-\theta)^{k-x_i}$$
+
+$$L(\theta) = \left[\prod_{i=1}^{n} \binom{k}{x_i}\right] \theta^{\sum_{i=1}^{n} x_i} (1-\theta)^{nk - \sum_{i=1}^{n} x_i}$$
+
+## Función de log-verosimilitud
+
+Tomamos el logaritmo natural:
+
+$$\ell(\theta) = \ln L(\theta) = \sum_{i=1}^{n} \ln \binom{k}{x_i} + \left(\sum_{i=1}^{n} x_i\right) \ln(\theta) + \left(nk - \sum_{i=1}^{n} x_i\right) \ln(1-\theta)$$
+
+## Derivada de la log-verosimilitud
+
+Derivamos con respecto a $\theta$ e igualamos a cero:
+
+$$\frac{d\ell(\theta)}{d\theta} = \frac{\sum_{i=1}^{n} x_i}{\theta} - \frac{nk - \sum_{i=1}^{n} x_i}{1-\theta} = 0$$
+
+## Estimador de máxima verosimilitud
+
+Resolvemos la ecuación:
+
+$$\frac{\sum_{i=1}^{n} x_i}{\theta} = \frac{nk - \sum_{i=1}^{n} x_i}{1-\theta}$$
+
+$$(1-\theta)\sum_{i=1}^{n} x_i = \theta\left(nk - \sum_{i=1}^{n} x_i\right)$$
+
+$$\sum_{i=1}^{n} x_i - \theta\sum_{i=1}^{n} x_i = \theta nk - \theta\sum_{i=1}^{n} x_i$$
+
+$$\sum_{i=1}^{n} x_i = \theta nk$$
+
+$$\hat\theta = \frac{\sum_{i=1}^{n} x_i}{nk} = \frac{n\overline{X}}{nk} = \frac{\overline{X}}{k}$$
+
+Por lo tanto, el **estimador de máxima verosimilitud** es:
+
+$$\boxed{\hat\theta_{MV} = \frac{\overline{X}}{k}}$$
+
+## Verificación de que es un máximo
+
+Calculamos la segunda derivada:
+
+$$\frac{d^2\ell(\theta)}{d\theta^2} = -\frac{\sum_{i=1}^{n} x_i}{\theta^2} - \frac{nk - \sum_{i=1}^{n} x_i}{(1-\theta)^2}$$
+
+Evaluando en $\hat\theta$:
+
+$$\frac{d^2\ell(\hat\theta)}{d\theta^2} = -\frac{\sum_{i=1}^{n} x_i}{\hat\theta^2} - \frac{nk - \sum_{i=1}^{n} x_i}{(1-\hat\theta)^2} < 0$$
+
+Como la segunda derivada es negativa, confirmamos que $\hat\theta_{MV}$ es un **máximo**.
+
+## Simulación
+
+Elegimos $k = 10$ y $\theta = 0.6$, y generamos una muestra de tamaño $n = 1000$.
+
+```{r}
+#| warning: false
+
+# Parámetros conocidos
+k_fijo <- 10
+theta_fijo <- 0.6
+n <- 1000
+
+# Generar muestra aleatoria
+set.seed(123)
+muestra <- rbinom(n, size = k_fijo, prob = theta_fijo)
+
+# Estimador de máxima verosimilitud
+theta_hat <- mean(muestra) / k_fijo
+
+# Mostrar resultados
+cat("Parámetro real θ =", theta_fijo, "\n")
+cat("Estimador θ̂_MV =", round(theta_hat, 4), "\n")
+cat("Error absoluto =", round(abs(theta_fijo - theta_hat), 4), "\n")
+
+# Crear data frame para gráficos
+df_muestra <- data.frame(X = muestra)
+
+# Histograma de la muestra
+library(ggplot2)
+library(RColorBrewer)
+
+ggplot(df_muestra, aes(x = X)) +
+  geom_histogram(aes(y = after_stat(density)), 
+                 bins = k_fijo + 1, 
+                 color = "black", 
+                 fill = "steelblue", 
+                 alpha = 0.7,
+                 boundary = -0.5) +
+  stat_function(fun = function(x) dbinom(x, size = k_fijo, prob = theta_fijo),
+                color = "red", 
+                linewidth = 1.2,
+                n = k_fijo + 1,
+                geom = "point",
+                size = 3) +
+  stat_function(fun = function(x) dbinom(x, size = k_fijo, prob = theta_hat),
+                color = "blue", 
+                linewidth = 1.2,
+                n = k_fijo + 1,
+                geom = "point",
+                size = 3) +
+  labs(title = "Distribución Binomial: Muestra vs Teórica",
+       subtitle = paste("k =", k_fijo, ", θ =", theta_fijo, ", θ̂ =", round(theta_hat, 3)),
+       x = "Número de éxitos",
+       y = "Densidad") +
+  theme_minimal() +
+  annotate("text", x = 2, y = 0.15, 
+           label = "● Teórico (θ)", 
+           color = "red", size = 4) +
+  annotate("text", x = 2, y = 0.13, 
+           label = "● Estimado (θ̂)", 
+           color = "blue", size = 4)
+```
+
+## Comparación con múltiples muestras
+
+Para visualizar la distribución del estimador, generamos 500 muestras de tamaño $n = 1000$ y calculamos $\hat\theta_{MV}$ para cada una.
+
+```{r}
+#| warning: false
+
+# Número de simulaciones
+N_sim <- 500
+
+# Simular N_sim muestras y calcular el estimador
+estimaciones <- replicate(N_sim, {
+  muestra <- rbinom(n, size = k_fijo, prob = theta_fijo)
+  mean(muestra) / k_fijo
+})
+
+# Data frame con estimaciones
+df_estimaciones <- data.frame(theta_hat = estimaciones)
+
+# Gráfico de distribución del estimador
+ggplot(df_estimaciones, aes(x = theta_hat)) +
+  geom_histogram(aes(y = after_stat(density)), 
+                 bins = 30, 
+                 color = "black", 
+                 fill = "lightgreen", 
+                 alpha = 0.7) +
+  geom_vline(xintercept = theta_fijo, 
+             color = "red", 
+             linetype = "dashed", 
+             linewidth = 1.2) +
+  geom_vline(xintercept = mean(estimaciones), 
+             color = "blue", 
+             linetype = "solid", 
+             linewidth = 1.2) +
+  labs(title = "Distribución del estimador de máxima verosimilitud",
+       subtitle = paste(N_sim, "simulaciones con n =", n),
+       x = "θ̂_MV",
+       y = "Densidad") +
+  annotate("text", x = theta_fijo + 0.02, y = 15, 
+           label = paste("θ real =", theta_fijo), 
+           color = "red", size = 4) +
+  annotate("text", x = mean(estimaciones) - 0.02, y = 13, 
+           label = paste("E(θ̂) =", round(mean(estimaciones), 4)), 
+           color = "blue", size = 4) +
+  theme_minimal()
+
+# Estadísticas del estimador
+cat("\nEstadísticas del estimador (", N_sim, "simulaciones):\n", sep = "")
+cat("Media =", round(mean(estimaciones), 4), "\n")
+cat("Desviación estándar =", round(sd(estimaciones), 4), "\n")
+cat("Sesgo =", round(mean(estimaciones) - theta_fijo, 6), "\n")
+```
+
+**Interpretación:** El estimador de máxima verosimilitud $\hat\theta_{MV} = \overline{X}/k$ es insesgado, ya que:
+
+$$E(\hat\theta_{MV}) = E\left(\frac{\overline{X}}{k}\right) = \frac{E(\overline{X})}{k} = \frac{E(X)}{k} = \frac{k\theta}{k} = \theta$$
+
+La simulación confirma que la distribución del estimador se centra en el valor real del parámetro.
+
+# b)  $gamma(\alpha, \theta)$
+
+Consideramos la distribución Gamma con parámetro de forma $\alpha$ conocido y parámetro de escala $\theta$ desconocido, donde $\alpha > 0$ y $\theta > 0$.
+
+## Función de densidad
+
+La función de densidad de una variable aleatoria $X \sim \Gamma(\alpha, \theta)$ es:
+
+$$f(x; \alpha, \theta) = \frac{1}{\Gamma(\alpha)\theta^\alpha} x^{\alpha-1} e^{-x/\theta}, \quad x > 0$$
+
+donde $\Gamma(\alpha) = \int_0^\infty t^{\alpha-1} e^{-t} dt$ es la función Gamma.
+
+**Nota:** En R, la parametrización es $\Gamma(\text{shape}, \text{scale})$ donde shape $= \alpha$ y scale $= \theta$.
+
+## Función de verosimilitud
+
+Dada una muestra aleatoria $X_1, X_2, \ldots, X_n$, la función de verosimilitud es:
+
+$$L(\theta) = \prod_{i=1}^{n} f(x_i; \alpha, \theta) = \prod_{i=1}^{n} \frac{1}{\Gamma(\alpha)\theta^\alpha} x_i^{\alpha-1} e^{-x_i/\theta}$$
+
+$$L(\theta) = \frac{1}{[\Gamma(\alpha)]^n \theta^{n\alpha}} \left(\prod_{i=1}^{n} x_i\right)^{\alpha-1} \exp\left(-\frac{1}{\theta}\sum_{i=1}^{n} x_i\right)$$
+
+## Función de log-verosimilitud
+
+Tomamos el logaritmo natural:
+
+$$\ell(\theta) = \ln L(\theta) = -n\ln[\Gamma(\alpha)] - n\alpha\ln(\theta) + (\alpha-1)\sum_{i=1}^{n}\ln(x_i) - \frac{1}{\theta}\sum_{i=1}^{n} x_i$$
+
+## Derivada de la log-verosimilitud
+
+Derivamos con respecto a $\theta$ e igualamos a cero:
+
+$$\frac{d\ell(\theta)}{d\theta} = -\frac{n\alpha}{\theta} + \frac{1}{\theta^2}\sum_{i=1}^{n} x_i = 0$$
+
+## Estimador de máxima verosimilitud
+
+Resolvemos la ecuación:
+
+$$\frac{1}{\theta^2}\sum_{i=1}^{n} x_i = \frac{n\alpha}{\theta}$$
+
+$$\frac{\sum_{i=1}^{n} x_i}{\theta} = n\alpha$$
+
+$$\theta = \frac{\sum_{i=1}^{n} x_i}{n\alpha} = \frac{n\overline{X}}{n\alpha} = \frac{\overline{X}}{\alpha}$$
+
+Por lo tanto, el **estimador de máxima verosimilitud** es:
+
+$$\boxed{\hat\theta_{MV} = \frac{\overline{X}}{\alpha}}$$
+
+## Verificación de que es un máximo
+
+Calculamos la segunda derivada:
+
+$$\frac{d^2\ell(\theta)}{d\theta^2} = \frac{n\alpha}{\theta^2} - \frac{2}{\theta^3}\sum_{i=1}^{n} x_i$$
+
+Evaluando en $\hat\theta$:
+
+$$\frac{d^2\ell(\hat\theta)}{d\theta^2} = \frac{n\alpha}{\hat\theta^2} - \frac{2n\overline{X}}{\hat\theta^3}$$
+
+Sustituyendo $\hat\theta = \overline{X}/\alpha$:
+
+$$\frac{d^2\ell(\hat\theta)}{d\theta^2} = \frac{n\alpha^3}{\overline{X}^2} - \frac{2n\overline{X}\alpha^3}{\overline{X}^3} = \frac{n\alpha^3}{\overline{X}^2} - \frac{2n\alpha^3}{\overline{X}^2} = -\frac{n\alpha^3}{\overline{X}^2} < 0$$
+
+Como la segunda derivada es negativa, confirmamos que $\hat\theta_{MV}$ es un **máximo**.
+
+## Propiedades del estimador
+
+El estimador es **insesgado**, ya que para $X \sim \Gamma(\alpha, \theta)$ sabemos que $E(X) = \alpha\theta$, entonces:
+
+$$E(\hat\theta_{MV}) = E\left(\frac{\overline{X}}{\alpha}\right) = \frac{E(\overline{X})}{\alpha} = \frac{E(X)}{\alpha} = \frac{\alpha\theta}{\alpha} = \theta$$
+
+## Simulación
+
+Elegimos $\alpha = 2$ (forma) y $\theta = 3$ (escala), y generamos una muestra de tamaño $n = 1000$.
+
+```{r}
+# Parámetros conocidos
+alpha_fijo <- 2  # parámetro de forma (conocido)
+theta_fijo <- 3  # parámetro de escala (desconocido, a estimar)
+n <- 1000
+
+# Generar muestra aleatoria
+set.seed(123)
+muestra <- rgamma(n, shape = alpha_fijo, scale = theta_fijo)
+
+# Estimador de máxima verosimilitud
+theta_hat <- mean(muestra) / alpha_fijo
+
+# Mostrar resultados
+cat("Parámetro real θ =", theta_fijo, "\n")
+cat("Estimador θ̂_MV =", round(theta_hat, 4), "\n")
+cat("Error absoluto =", round(abs(theta_fijo - theta_hat), 4), "\n")
+
+# Crear data frame para gráficos
+df_muestra <- data.frame(X = muestra)
+
+# Histograma de la muestra con densidades teórica y estimada
+library(ggplot2)
+library(RColorBrewer)
+
+ggplot(df_muestra, aes(x = X)) +
+  geom_histogram(aes(y = after_stat(density)), 
+                 bins = 40, 
+                 color = "black", 
+                 fill = "steelblue", 
+                 alpha = 0.6,
+                 boundary = 0) +
+  stat_function(fun = function(x) dgamma(x, shape = alpha_fijo, scale = theta_fijo),
+                aes(color = "Teórico (θ)"),
+                linewidth = 1.2) +
+  stat_function(fun = function(x) dgamma(x, shape = alpha_fijo, scale = theta_hat),
+                aes(color = "Estimado (θ̂)"),
+                linewidth = 1.2,
+                linetype = "dashed") +
+  scale_color_manual(name = "Densidad",
+                     values = c("Teórico (θ)" = "red", 
+                                "Estimado (θ̂)" = "blue")) +
+  labs(title = "Distribución Gamma: Muestra vs Teórica",
+       subtitle = paste("α =", alpha_fijo, ", θ =", theta_fijo, ", θ̂ =", round(theta_hat, 3)),
+       x = "Valores",
+       y = "Densidad") +
+  theme_minimal() +
+  theme(legend.position = c(0.85, 0.85),
+        legend.background = element_rect(fill = "white", color = "black"))
+```
+
+## Comparación con múltiples muestras
+
+Para visualizar la distribución del estimador, generamos 500 muestras de tamaño $n = 1000$ y calculamos $\hat\theta_{MV}$ para cada una.
+
+```{r}
+# Número de simulaciones
+N_sim <- 500
+
+# Simular N_sim muestras y calcular el estimador
+estimaciones <- replicate(N_sim, {
+  muestra <- rgamma(n, shape = alpha_fijo, scale = theta_fijo)
+  mean(muestra) / alpha_fijo
+})
+
+# Data frame con estimaciones
+df_estimaciones <- data.frame(theta_hat = estimaciones)
+
+# Gráfico de distribución del estimador
+ggplot(df_estimaciones, aes(x = theta_hat)) +
+  geom_histogram(aes(y = after_stat(density)), 
+                 bins = 30, 
+                 color = "black", 
+                 fill = "lightgreen", 
+                 alpha = 0.7) +
+  geom_vline(xintercept = theta_fijo, 
+             color = "red", 
+             linetype = "dashed", 
+             linewidth = 1.2) +
+  geom_vline(xintercept = mean(estimaciones), 
+             color = "blue", 
+             linetype = "solid", 
+             linewidth = 1.2) +
+  labs(title = "Distribución del estimador de máxima verosimilitud",
+       subtitle = paste(N_sim, "simulaciones con n =", n, ", α =", alpha_fijo),
+       x = "θ̂_MV",
+       y = "Densidad") +
+  annotate("text", x = theta_fijo + 0.15, y = 4, 
+           label = paste("θ real =", theta_fijo), 
+           color = "red", size = 4) +
+  annotate("text", x = mean(estimaciones) - 0.15, y = 3.5, 
+           label = paste("E(θ̂) =", round(mean(estimaciones), 4)), 
+           color = "blue", size = 4) +
+  theme_minimal()
+
+# Estadísticas del estimador
+cat("\nEstadísticas del estimador (", N_sim, "simulaciones):\n", sep = "")
+cat("Media =", round(mean(estimaciones), 4), "\n")
+cat("Desviación estándar =", round(sd(estimaciones), 4), "\n")
+cat("Sesgo =", round(mean(estimaciones) - theta_fijo, 6), "\n")
+cat("Varianza teórica = θ²/(nα) =", round(theta_fijo^2 / (n * alpha_fijo), 4), "\n")
+cat("Varianza empírica =", round(var(estimaciones), 4), "\n")
+```
+
+## Varianza del estimador
+
+La varianza del estimador puede calcularse usando que $Var(X) = \alpha\theta^2$ para $X \sim \Gamma(\alpha, \theta)$:
+
+$$Var(\hat\theta_{MV}) = Var\left(\frac{\overline{X}}{\alpha}\right) = \frac{1}{\alpha^2}Var(\overline{X}) = \frac{1}{\alpha^2} \cdot \frac{Var(X)}{n} = \frac{1}{\alpha^2} \cdot \frac{\alpha\theta^2}{n} = \frac{\theta^2}{n\alpha}$$
+
+**Interpretación:** El estimador de máxima verosimilitud $\hat\theta_{MV} = \overline{X}/\alpha$ es insesgado y su varianza disminuye con el tamaño de muestra $n$ y aumenta con valores más grandes de $\theta$. La simulación confirma que la distribución del estimador se centra en el valor real del parámetro.
+
+# c)  $Weibull(\alpha, \theta)$
+
+Consideramos la distribución Weibull con parámetro de forma $\alpha$ conocido y parámetro de escala $\theta$ desconocido, donde $\alpha > 0$ y $\theta > 0$.
+
+## Función de densidad
+
+La función de densidad de una variable aleatoria $X \sim Weibull(\alpha, \theta)$ es:
+
+$$f(x; \alpha, \theta) = \frac{\alpha}{\theta^\alpha} x^{\alpha-1} e^{-(x/\theta)^\alpha}, \quad x > 0$$
+
+**Nota:** En R, la parametrización es $Weibull(\text{shape}, \text{scale})$ donde shape $= \alpha$ y scale $= \theta$.
+
+## Función de verosimilitud
+
+Dada una muestra aleatoria $X_1, X_2, \ldots, X_n$, la función de verosimilitud es:
+
+$$L(\theta) = \prod_{i=1}^{n} f(x_i; \alpha, \theta) = \prod_{i=1}^{n} \frac{\alpha}{\theta^\alpha} x_i^{\alpha-1} e^{-(x_i/\theta)^\alpha}$$
+
+$$L(\theta) = \frac{\alpha^n}{\theta^{n\alpha}} \left(\prod_{i=1}^{n} x_i\right)^{\alpha-1} \exp\left(-\frac{1}{\theta^\alpha}\sum_{i=1}^{n} x_i^\alpha\right)$$
+
+## Función de log-verosimilitud
+
+Tomamos el logaritmo natural:
+
+$$\ell(\theta) = \ln L(\theta) = n\ln(\alpha) - n\alpha\ln(\theta) + (\alpha-1)\sum_{i=1}^{n}\ln(x_i) - \frac{1}{\theta^\alpha}\sum_{i=1}^{n} x_i^\alpha$$
+
+## Derivada de la log-verosimilitud
+
+Derivamos con respecto a $\theta$ e igualamos a cero:
+
+$$\frac{d\ell(\theta)}{d\theta} = -\frac{n\alpha}{\theta} + \frac{\alpha}{\theta^{\alpha+1}}\sum_{i=1}^{n} x_i^\alpha = 0$$
+
+Simplificamos multiplicando por $\theta$:
+
+$$-n\alpha + \frac{\alpha}{\theta^{\alpha}}\sum_{i=1}^{n} x_i^\alpha = 0$$
+
+## Estimador de máxima verosimilitud
+
+Resolvemos la ecuación:
+
+$$\frac{\alpha}{\theta^{\alpha}}\sum_{i=1}^{n} x_i^\alpha = n\alpha$$
+
+$$\frac{1}{\theta^{\alpha}}\sum_{i=1}^{n} x_i^\alpha = n$$
+
+$$\sum_{i=1}^{n} x_i^\alpha = n\theta^{\alpha}$$
+
+$$\theta^{\alpha} = \frac{1}{n}\sum_{i=1}^{n} x_i^\alpha$$
+
+$$\theta = \left(\frac{1}{n}\sum_{i=1}^{n} x_i^\alpha\right)^{1/\alpha}$$
+
+Por lo tanto, el **estimador de máxima verosimilitud** es:
+
+$$\boxed{\hat\theta_{MV} = \left(\frac{1}{n}\sum_{i=1}^{n} X_i^\alpha\right)^{1/\alpha}}$$
+
+También podemos expresarlo como:
+
+$$\boxed{\hat\theta_{MV} = \left(\overline{X^\alpha}\right)^{1/\alpha}}$$
+
+donde $\overline{X^\alpha} = \frac{1}{n}\sum_{i=1}^{n} X_i^\alpha$ es la media de las observaciones elevadas a la potencia $\alpha$.
+
+## Verificación de que es un máximo
+
+Calculamos la segunda derivada:
+
+$$\frac{d^2\ell(\theta)}{d\theta^2} = \frac{n\alpha}{\theta^2} - \frac{\alpha(\alpha+1)}{\theta^{\alpha+2}}\sum_{i=1}^{n} x_i^\alpha$$
+
+Evaluando en $\hat\theta$ y usando que $\sum_{i=1}^{n} x_i^\alpha = n\hat\theta^{\alpha}$:
+
+$$\frac{d^2\ell(\hat\theta)}{d\theta^2} = \frac{n\alpha}{\hat\theta^2} - \frac{\alpha(\alpha+1)}{\hat\theta^{\alpha+2}} \cdot n\hat\theta^{\alpha}$$
+
+$$= \frac{n\alpha}{\hat\theta^2} - \frac{n\alpha(\alpha+1)}{\hat\theta^{2}} = \frac{n\alpha}{\hat\theta^2}[1 - (\alpha+1)]$$
+
+$$= -\frac{n\alpha^2}{\hat\theta^2} < 0$$
+
+Como la segunda derivada es negativa, confirmamos que $\hat\theta_{MV}$ es un **máximo**.
+
+## Propiedades del estimador
+
+Para la distribución Weibull, $E(X) = \theta\Gamma(1 + 1/\alpha)$ y $E(X^\alpha) = \theta^\alpha\Gamma(1 + 1) = \theta^\alpha$.
+
+Por lo tanto:
+
+$$E(\hat\theta_{MV}) = E\left[\left(\overline{X^\alpha}\right)^{1/\alpha}\right]$$
+
+Por la desigualdad de Jensen y la concavidad de $x^{1/\alpha}$ cuando $\alpha > 1$, el estimador tiene un **sesgo negativo** para muestras finitas cuando $\alpha > 1$. Sin embargo, es **asintóticamente insesgado**.
+
+## Simulación
+
+Elegimos $\alpha = 2$ (forma) y $\theta = 3$ (escala), y generamos una muestra de tamaño $n = 1000$.
+
+```{r}
+# Parámetros conocidos
+alpha_fijo <- 2  # parámetro de forma (conocido)
+theta_fijo <- 3  # parámetro de escala (desconocido, a estimar)
+n <- 1000
+
+# Generar muestra aleatoria
+set.seed(123)
+muestra <- rweibull(n, shape = alpha_fijo, scale = theta_fijo)
+
+# Estimador de máxima verosimilitud
+theta_hat <- (mean(muestra^alpha_fijo))^(1/alpha_fijo)
+
+# Mostrar resultados
+cat("Parámetro real θ =", theta_fijo, "\n")
+cat("Estimador θ̂_MV =", round(theta_hat, 4), "\n")
+cat("Error absoluto =", round(abs(theta_fijo - theta_hat), 4), "\n")
+
+# Crear data frame para gráficos
+df_muestra <- data.frame(X = muestra)
+
+# Histograma de la muestra con densidades teórica y estimada
+library(ggplot2)
+library(RColorBrewer)
+
+ggplot(df_muestra, aes(x = X)) +
+  geom_histogram(aes(y = after_stat(density)), 
+                 bins = 40, 
+                 color = "black", 
+                 fill = "steelblue", 
+                 alpha = 0.6,
+                 boundary = 0) +
+  stat_function(fun = function(x) dweibull(x, shape = alpha_fijo, scale = theta_fijo),
+                aes(color = "Teórico (θ)"),
+                linewidth = 1.2) +
+  stat_function(fun = function(x) dweibull(x, shape = alpha_fijo, scale = theta_hat),
+                aes(color = "Estimado (θ̂)"),
+                linewidth = 1.2,
+                linetype = "dashed") +
+  scale_color_manual(name = "Densidad",
+                     values = c("Teórico (θ)" = "red", 
+                                "Estimado (θ̂)" = "blue")) +
+  labs(title = "Distribución Weibull: Muestra vs Teórica",
+       subtitle = paste("α =", alpha_fijo, ", θ =", theta_fijo, ", θ̂ =", round(theta_hat, 3)),
+       x = "Valores",
+       y = "Densidad") +
+  theme_minimal() +
+  theme(legend.position = c(0.85, 0.85),
+        legend.background = element_rect(fill = "white", color = "black"))
+```
+
+## Comparación con múltiples muestras
+
+Para visualizar la distribución del estimador, generamos 500 muestras de tamaño $n = 1000$ y calculamos $\hat\theta_{MV}$ para cada una.
+
+```{r}
+# Número de simulaciones
+N_sim <- 500
+
+# Simular N_sim muestras y calcular el estimador
+estimaciones <- replicate(N_sim, {
+  muestra <- rweibull(n, shape = alpha_fijo, scale = theta_fijo)
+  (mean(muestra^alpha_fijo))^(1/alpha_fijo)
+})
+
+# Data frame con estimaciones
+df_estimaciones <- data.frame(theta_hat = estimaciones)
+
+# Gráfico de distribución del estimador
+ggplot(df_estimaciones, aes(x = theta_hat)) +
+  geom_histogram(aes(y = after_stat(density)), 
+                 bins = 30, 
+                 color = "black", 
+                 fill = "lightgreen", 
+                 alpha = 0.7) +
+  geom_vline(xintercept = theta_fijo, 
+             color = "red", 
+             linetype = "dashed", 
+             linewidth = 1.2) +
+  geom_vline(xintercept = mean(estimaciones), 
+             color = "blue", 
+             linetype = "solid", 
+             linewidth = 1.2) +
+  labs(title = "Distribución del estimador de máxima verosimilitud",
+       subtitle = paste(N_sim, "simulaciones con n =", n, ", α =", alpha_fijo),
+       x = "θ̂_MV",
+       y = "Densidad") +
+  annotate("text", x = theta_fijo + 0.08, y = 5, 
+           label = paste("θ real =", theta_fijo), 
+           color = "red", size = 4) +
+  annotate("text", x = mean(estimaciones) - 0.08, y = 4.5, 
+           label = paste("E(θ̂) =", round(mean(estimaciones), 4)), 
+           color = "blue", size = 4) +
+  theme_minimal()
+
+# Estadísticas del estimador
+cat("\nEstadísticas del estimador (", N_sim, "simulaciones):\n", sep = "")
+cat("Media =", round(mean(estimaciones), 4), "\n")
+cat("Desviación estándar =", round(sd(estimaciones), 4), "\n")
+cat("Sesgo =", round(mean(estimaciones) - theta_fijo, 6), "\n")
+cat("Sesgo relativo (%) =", round(100 * (mean(estimaciones) - theta_fijo) / theta_fijo, 3), "%\n")
+```
+
+## Convergencia del estimador
+
+Verificamos la convergencia al aumentar el tamaño de muestra.
+
+```{r}
+# Tamaños de muestra
+tamanos <- c(50, 100, 500, 1000, 5000)
+N_sim <- 500
+
+# Data frame para almacenar resultados
+df_convergencia <- data.frame()
+
+for (tam in tamanos) {
+  estimaciones_tam <- replicate(N_sim, {
+    muestra <- rweibull(tam, shape = alpha_fijo, scale = theta_fijo)
+    (mean(muestra^alpha_fijo))^(1/alpha_fijo)
+  })
+  
+  df_temp <- data.frame(
+    n = factor(tam),
+    Estimacion = estimaciones_tam
+  )
+  df_convergencia <- rbind(df_convergencia, df_temp)
+}
+
+# Gráfico de convergencia
+ggplot(df_convergencia) +
+  geom_boxplot(aes(x = n, y = Estimacion, fill = n), alpha = 0.7) +
+  geom_hline(yintercept = theta_fijo, 
+             color = "red", 
+             linetype = "dashed", 
+             linewidth = 1) +
+  scale_fill_brewer(palette = "Set1") +
+  labs(title = "Convergencia del estimador al aumentar el tamaño de la muestra",
+       x = "Tamaño de la muestra (n)",
+       y = "Estimación de θ") +
+  theme_bw() +
+  theme(legend.position = "none")
+```
+
+**Interpretación:** El estimador de máxima verosimilitud $\hat\theta_{MV} = \left(\overline{X^\alpha}\right)^{1/\alpha}$ es asintóticamente insesgado. Para $\alpha = 2$, observamos un pequeño sesgo negativo en muestras finitas, pero este sesgo disminuye conforme aumenta el tamaño de muestra. La simulación confirma que la distribución del estimador se concentra cada vez más cerca del valor real del parámetro a medida que $n$ aumenta.
